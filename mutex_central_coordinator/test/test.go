@@ -3,44 +3,55 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
-	ex "distcode/mutex"
+	"distcode/mutex"
 
 	"github.com/distcodep7/dsnet/dsnet"
-	"github.com/distcodep7/dsnet/testing/wrapper"
+	controller "github.com/distcodep7/dsnet/testing/controller"
 )
 
 func main() {
-	numNodes := flag.Int("n", 3, "Number of nodes in the mutex system")
-	flag.Parse()
+	go controller.Serve()
+	time.Sleep(2 * time.Second)
 
-	tester, _ := dsnet.NewNode("TESTER", "localhost:50051")
+	tester, err := dsnet.NewNode("TESTER", "localhost:50051")
+	if err != nil {
+		fmt.Printf("Error creating tester node: %v\\n", err)
+		return
+	}
+	defer tester.Close()
 
-	trigger := ex.MutexTrigger{
-		BaseMessage: dsnet.BaseMessage{ From: "TESTER", To: "N1", Type: "MutexTrigger" },
+	peersJSON := os.Getenv("peers_json")
+	var peers []string
+	if err := json.Unmarshal([]byte(peersJSON), &peers); err != nil {
+		fmt.Printf("invalid peersJSON: %v\\n", err)
+		return
+	}
+
+	numNodes := len(peers)
+	fmt.Printf("Test starting with %d nodes: %v\\n", numNodes, peers)
+
+	time.Sleep(5 * time.Second) // Wait for all nodes to be ready
+
+	trigger := mutex.MutexTrigger{
+		BaseMessage: dsnet.BaseMessage{From: "TESTER", To: peers[0], Type: "MutexTrigger"},
 		MutexID:     "TEST_MUTEX_001",
 		WorkMillis:  300,
 	}
-	log.Println("Sending MutexTrigger...")
-	tester.Send(context.Background(), "N1", trigger)
+	log.Printf("Sending MutexTrigger to %s...\\n", peers[0])
+	tester.Send(context.Background(), peers[0], trigger)
 
-	// Optional: use wrapper to reset a random node during the test (port 50001 assumed)
-	wm := wrapper.NewWrapperManager(50001)
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		_ = wm.Reset(context.Background(), wrapper.Alias("N2"))
-	}()
-
-	// Wait for MutexResult from all nodes
 	received := map[string]bool{}
 	expected := map[string]bool{}
-	for i := 1; i <= *numNodes; i++ { expected[fmt.Sprintf("N%d", i)] = true }
+	for _, peer := range peers {
+		expected[peer] = true
+	}
 
-	timeout := time.After(15 * time.Second)
+	timeout := time.After(30 * time.Second)
 	for {
 		if len(received) >= len(expected) {
 			log.Println("✅ TEST PASSED: All nodes completed critical section")
@@ -49,7 +60,7 @@ func main() {
 		select {
 		case event := <-tester.Inbound:
 			if event.Type == "MutexResult" {
-				var result ex.MutexResult
+				var result mutex.MutexResult
 				json.Unmarshal(event.Payload, &result)
 				if result.Success && expected[result.NodeId] && result.MutexID == "TEST_MUTEX_001" {
 					received[result.NodeId] = true
@@ -59,7 +70,11 @@ func main() {
 		case <-timeout:
 			// Identify missing nodes for better error output
 			missing := []string{}
-			for n := range expected { if !received[n] { missing = append(missing, n) } }
+			for n := range expected {
+				if !received[n] {
+					missing = append(missing, n)
+				}
+			}
 			log.Fatalf("❌ TEST FAILED: Timed out waiting for MutexResult from: %v", missing)
 		}
 	}

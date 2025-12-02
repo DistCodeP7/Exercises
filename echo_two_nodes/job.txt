@@ -1,0 +1,44 @@
+job = {
+    "jobUid": str(uuid.uuid4()),
+    "userId": "1",
+    "timeout": 60,
+    "nodes": {
+        "testContainer": {
+            "alias": "test",
+            "testFiles": {
+                "echo/protocol.go": protocol,
+				"main.go": test,
+            },
+            "buildCommand": "go build -o testbin ./main.go && chmod +x testbin",
+            "entryCommand": "./testbin",
+            "envs": [
+                { "key": "peers", "value": "[\"replica1\", \"replica2\"]" },
+            ]
+        },
+        "submission": {
+            "submissionCode": {
+                "echo/protocol.go": protocol,
+                "main.go": solution,
+            },
+            "buildCommand": "go build -o solution ./main.go && chmod +x solution",
+            "entryCommand": "./solution",
+            "globalEnvs": [],
+            "replicaConfigs": [
+                {
+                    "alias": "replica1",
+                    "envs": [
+                        {"key": "NODE_ID", "value": "replica1"},
+                        {"key": "PEER", "value": "[\"replica2\"]"}
+                    ]
+                },
+                {
+                    "alias": "replica2",
+                    "envs": [
+                        {"key": "NODE_ID", "value": "replica2"},
+						{"key": "PEER", "value": "[\"replica1\"]"}
+                    ]
+                }
+            ]
+        }
+	}
+}
