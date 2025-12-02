@@ -33,7 +33,7 @@ func (en *EchoNode) Run(ctx context.Context) {
 		case event := <-en.Net.Inbound:
 			en.handleEvent(ctx, event)
 		case <-ctx.Done():
-			return
+			os.Exit(0)
 		}
 	}
 }
@@ -66,7 +66,7 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 			EchoID:      resp.EchoID,
 			Success:     true,
 		})
-		return
+		os.Exit(0)
 	}
 }
 

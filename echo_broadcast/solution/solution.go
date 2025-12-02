@@ -22,8 +22,8 @@ type EchoNode struct {
 func NewEchoNode(id string) *EchoNode {
 	n, err := dsnet.NewNode(id, "test:50051")
 	if err != nil {
-		fmt.Printf("Failed to create node " + id + ": " + err.Error())
-		return nil
+		fmt.Println("Failed to create node %s: %v", id, err)
+		os.Exit(1)
 	}
 	return &EchoNode{Net: n, pendingReplies: make(map[string]map[string]bool)}
 }
@@ -42,7 +42,7 @@ func (en *EchoNode) Run(ctx context.Context) {
 		case event := <-en.Net.Inbound:
 			en.handleEvent(ctx, event)
 		case <-ctx.Done():
-			return
+			os.Exit(0)
 		}
 	}
 }
@@ -98,7 +98,7 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 				EchoID:      resp.EchoID,
 				Success:     true,
 			})
-			delete(en.pendingReplies, resp.EchoID)
+			os.Exit(0)
 		}
 	}
 }

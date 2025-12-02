@@ -55,7 +55,7 @@ func main() {
 	for {
 		if len(received) >= len(expected) {
 			log.Println("✅ TEST PASSED: All nodes completed critical section")
-			return
+			os.Exit(0)
 		}
 		select {
 		case event := <-tester.Inbound:

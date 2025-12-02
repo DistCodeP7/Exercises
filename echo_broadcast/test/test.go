@@ -5,6 +5,7 @@ import (
 	"distcode/echo"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/distcodep7/dsnet/dsnet"
@@ -47,7 +48,7 @@ func main() {
 
 				if result.EchoID == "TEST_001" {
 					log.Println("✅ TEST PASSED: Received EchoResponse from replica2")
-					return
+					os.Exit(0)
 				}
 			}
 		case <-timeout:

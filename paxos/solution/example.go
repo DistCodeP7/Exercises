@@ -106,8 +106,7 @@ func (pn *PaxosNode) handleEvent(ctx context.Context, event dsnet.Event) {
 			}
 			pn.Net.Send(ctx, "TESTER", result)
 
-			// Prevent duplicate reporting
-			pn.votesReceived[electionId] = map[string]bool{"Done": true}
+			os.Exit(0)
 		}
 	}
 }

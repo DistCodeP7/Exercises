@@ -158,7 +158,7 @@ func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Even
 		if len(st.completed) >= len(st.allNodes)-1 {
 			res := ex.MutexResult{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: "TESTER", Type: "MutexResult"}, MutexID: st.mutexID, NodeId: en.Net.ID, Success: true}
 			en.Net.Send(ctx, "TESTER", res)
-			return
+			os.Exit(0)
 		}
 		grantNext(ctx, en, st)
 	}

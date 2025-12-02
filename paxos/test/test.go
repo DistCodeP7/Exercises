@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"distcode/leader_election"
@@ -48,7 +49,7 @@ func main() {
 
 				if result.Success {
 					log.Printf("✅ TEST PASSED: %s elected successfully", result.LeaderID)
-					return
+					os.Exit(0)
 				}
 			}
 		case <-timeout:
