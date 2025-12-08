@@ -5,20 +5,23 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"time"
+	"strings"
 
-	"distcode/echo"
+	"runner/shared"
 
 	"github.com/distcodep7/dsnet/dsnet"
 )
 
+var Peers []string
+
 type EchoNode struct{ Net *dsnet.Node }
 
 func NewEchoNode(id string) *EchoNode {
-	n, err := dsnet.NewNode(id, "test:50051")
+	n, err := dsnet.NewNode(id, "test-container:50051")
 	if err != nil {
 		log.Fatalf("Failed to create node %s: %v", id, err)
 	}
+    
 	return &EchoNode{Net: n}
 }
 
@@ -41,51 +44,49 @@ func (en *EchoNode) Run(ctx context.Context) {
 func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 	switch event.Type {
 	case "SendTrigger":
-		var msg echo.SendTrigger
+		var msg shared.SendTrigger
 		json.Unmarshal(event.Payload, &msg)
-		en.Net.Send(ctx, "replica2", echo.EchoMessage{
-			BaseMessage: newBaseMessage(en.Net.ID, "replica2", "EchoMessage"),
+		en.Net.Send(ctx, Peers[1], shared.EchoMessage{
+			BaseMessage: newBaseMessage(en.Net.ID, Peers[1], "EchoMessage"),
 			EchoID:      msg.EchoID,
 			Content:     msg.Content,
 		})
 	case "EchoMessage":
-		var msg echo.EchoMessage
+		var msg shared.EchoMessage
 		json.Unmarshal(event.Payload, &msg)
-
-		en.Net.Send(ctx, msg.From, echo.EchoResponse{
+		
+		en.Net.Send(ctx, msg.From, shared.EchoResponse{
 			BaseMessage: newBaseMessage(en.Net.ID, msg.From, "EchoResponse"),
 			EchoID:      msg.EchoID,
 			Content:     msg.Content,
 		})
 	case "EchoResponse":
-		var resp echo.EchoResponse
+		var resp shared.EchoResponse
 		json.Unmarshal(event.Payload, &resp)
 
-		en.Net.Send(ctx, "TESTER", echo.ReplyReceived{
+		en.Net.Send(ctx, "TESTER", shared.ReplyReceived{
 			BaseMessage: newBaseMessage(en.Net.ID, "TESTER", "ReplyReceived"),
 			EchoID:      resp.EchoID,
 			Success:     true,
 		})
-		os.Exit(0)
 	}
 }
 
 func main() {
-	time.Sleep(3 * time.Second)
-
-	id := os.Getenv("NODE_ID")
+	id := os.Getenv("ID")
 	if id == "" {
-		log.Printf("NODE_ID environment variable not set")
+		log.Fatal("ID environment variable not set")
 		return
 	}
-	peer := os.Getenv("PEER")
-	if peer == "" {
-		log.Printf("PEER environment variable not set")
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	if Peers == nil {
+		log.Fatal("PEERS environment variable not set")
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 	echoNode := NewEchoNode(id)
-	echoNode.Run(ctx) // Block here instead of goroutine
+    defer echoNode.Net.Close()
+	go echoNode.Run(ctx)
+	select {}
 }

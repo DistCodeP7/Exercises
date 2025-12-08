@@ -1,4 +1,4 @@
-package echo
+package shared
 
 import "github.com/distcodep7/dsnet/dsnet"
 

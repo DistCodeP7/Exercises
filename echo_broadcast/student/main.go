@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
-	"time"
+	"strings"
 
-	"distcode/echo"
+	"runner/shared"
 
 	"github.com/distcodep7/dsnet/dsnet"
 )
 
-var totalNodes int
+var totalNodes 	int
+var Peers 		[]string
+var id          string
 
 type EchoNode struct {
 	Net            *dsnet.Node
@@ -20,9 +22,9 @@ type EchoNode struct {
 }
 
 func NewEchoNode(id string) *EchoNode {
-	n, err := dsnet.NewNode(id, "test:50051")
+	n, err := dsnet.NewNode(id, "test-container:50051")
 	if err != nil {
-		fmt.Println("Failed to create node %s: %v", id, err)
+		log.Fatalf("Failed to create node %s: %v\n", id, err)
 		os.Exit(1)
 	}
 	return &EchoNode{Net: n, pendingReplies: make(map[string]map[string]bool)}
@@ -51,27 +53,27 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 	switch event.Type {
 
 	case "SendTrigger":
-		var msg echo.SendTrigger
+		var msg shared.SendTrigger
 		json.Unmarshal(event.Payload, &msg)
 
 		if en.pendingReplies == nil {
 			en.pendingReplies = make(map[string]map[string]bool)
 		}
 		en.pendingReplies[msg.EchoID] = make(map[string]bool)
-
+        log.Printf("ASS2")
 		en.SendToAll(ctx, msg.EchoID, msg.Content)
 	case "EchoMessage":
-		var msg echo.EchoMessage
+		var msg shared.EchoMessage
 		json.Unmarshal(event.Payload, &msg)
 
-		en.Net.Send(ctx, msg.From, echo.EchoResponse{
+		en.Net.Send(ctx, msg.From, shared.EchoResponse{
 			BaseMessage: newBaseMessage(en.Net.ID, msg.From, "EchoResponse"),
 			EchoID:      msg.EchoID,
 			Content:     msg.Content,
 		})
 	case "EchoResponse":
 		// Handle EchoResponse
-		var resp echo.EchoResponse
+		var resp shared.EchoResponse
 		json.Unmarshal(event.Payload, &resp)
 
 		if en.pendingReplies == nil {
@@ -93,24 +95,23 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 
 		if len(en.pendingReplies[resp.EchoID]) == totalNodes-1 {
 			// All replies received
-			en.Net.Send(ctx, "TESTER", echo.ReplyReceived{
+			en.Net.Send(ctx, "TESTER", 	shared.ReplyReceived{
 				BaseMessage: newBaseMessage(en.Net.ID, "TESTER", "ReplyReceived"),
 				EchoID:      resp.EchoID,
 				Success:     true,
 			})
-			os.Exit(0)
 		}
 	}
 }
 
 func (en *EchoNode) SendToAll(ctx context.Context, echoID string, content string) {
 	for i := 1; i <= totalNodes; i++ {
-		nodeID := fmt.Sprintf("replica%d", i)
+		nodeID := Peers[i-1]
 		if nodeID == en.Net.ID {
 			continue // skip self
 		}
 
-		en.Net.Send(ctx, nodeID, echo.EchoMessage{
+		en.Net.Send(ctx, nodeID, shared.EchoMessage{
 			BaseMessage: newBaseMessage(en.Net.ID, nodeID, "EchoMessage"),
 			EchoID:      echoID,
 			Content:     content,
@@ -119,35 +120,20 @@ func (en *EchoNode) SendToAll(ctx context.Context, echoID string, content string
 }
 
 func main() {
-	time.Sleep(3 * time.Second)
-
-	id := os.Getenv("NODE_ID")
+	id := os.Getenv("ID")
 	if id == "" {
-		fmt.Println("NODE_ID environment variable not set")
+		log.Fatal("ID environment variable not set")
 		return
 	}
-
-	peers := os.Getenv("PEERS")
-	if peers == "" {
-		fmt.Println("PEERS environment variable not set")
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	if Peers == nil {
+		log.Fatal("PEERS environment variable not set")
 		return
 	}
+	totalNodes = len(Peers)
 
-	var peersList []string
-	if err := json.Unmarshal([]byte(peers), &peersList); err != nil {
-		fmt.Println("Error parsing peers JSON:", err)
-		return
-	}
-	totalNodes = len(peersList)
-
-	EchoNode := NewEchoNode(id)
-	if EchoNode == nil {
-		fmt.Println("Failed to create echo node")
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	EchoNode.Run(ctx)
+	ctx := context.Background()
+	echoNode := NewEchoNode(id)
+	defer echoNode.Net.Close()
+	echoNode.Run(ctx)
 }
