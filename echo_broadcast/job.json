@@ -1,52 +1,52 @@
 {
-  "jobUid": "f90cc494-4464-45aa-b2b0-f24481ab6e3b",
-  "nodes": {
-    "submission": {
-      "submissionCode": {
-        "student/main.go": "",
-        "shared/protocol.go": ""
-      },
-      "buildCommand": "go build -o ./stud ./student/main.go",
-      "entryCommand": "./wrapper -cmd ./stud",
-      "globalEnvs": [],
-      "replicaConfigs": [
-        {
-          "alias": "Node-A",
-          "envs": []
-        },
-        {
-          "alias": "Node-B",
-          "envs": [],
-          "id": 1
-        },
-        {
-          "alias": "Node-C",
-          "envs": [],
-          "id": 2
-        },
-        {
-          "alias": "Node-D",
-          "envs": [],
-          "id": 3
-        },
-        {
-          "alias": "Node-E",
-          "envs": [],
-          "id": 4
+    "jobUid": "f90cc494-4464-45aa-b2b0-f24481ab6e3b",
+    "nodes": {
+        "submission": {
+            "submissionCode": {
+                "student/main.go": "",
+                "shared/protocol.go": ""
+            },
+			"buildCommand": "go build -o ./stud ./student/main.go",
+			"entryCommand": "./wrapper -cmd ./stud",
+			"globalEnvs": [],
+			"replicaConfigs": [
+				{
+					"alias": "Node-A",
+					"envs": []
+				},
+				{
+					"alias": "Node-B",
+					"envs": [],
+					"id": 1
+				},
+				{
+					"alias": "Node-C",
+					"envs": [],
+					"id": 2
+				},
+				{
+					"alias": "Node-D",
+					"envs": [],
+					"id": 3
+				},
+				{
+					"alias": "Node-E",
+					"envs": [],
+					"id": 4
+				}
+			]
+		},
+		"testContainer": {
+			"alias": "test-container",
+			"testFiles": {
+			"test/main_test.go": "",
+			"shared/protocol.go": ""
+			},
+			"envs": [],
+			"buildCommand": "go test -c -o ./test_binary ./test/",
+			"entryCommand": "./test_binary"
         }
-      ]
     },
-    "testContainer": {
-      "alias": "test-container",
-      "testFiles": {
-        "test/main_test.go": "",
-        "shared/protocol.go": ""
-      },
-      "envs": [],
-      "buildCommand": "go test -c -o ./test_binary ./test/",
-    "entryCommand": "./test_binary"
-    }
-  },
-  "userId": "$2b$10$c0aFkt1Lw1YRi94znmYIzeBOaWSnQc60d8sY2yT4E4NTeE5RD2bQK",
-  "timeout": 60
+    "userId": "$2b$10$c0aFkt1Lw1YRi94znmYIzeBOaWSnQc60d8sY2yT4E4NTeE5RD2bQK",
+    "timeout": 60
 }

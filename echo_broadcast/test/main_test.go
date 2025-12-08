@@ -18,10 +18,10 @@ import (
 )
 
 var (
-    Peers []string
-    ID    string
-    WM    *wrapper.WrapperManager
-    ctx   context.Context
+	Peers []string
+	ID    string
+	WM    *wrapper.WrapperManager
+	ctx   context.Context
 )
 
 func TestEchoTwoNodes(t *testing.T) {
@@ -49,53 +49,52 @@ func TestEchoTwoNodes(t *testing.T) {
 		}
 		tester.Send(ctx, Peers[0], trigger)
 
-		// Wait for the specific Result
 		timeout := time.After(30 * time.Second)
-        for {
-            select {
-            case event := <-tester.Inbound:
-                if event.Type == "ReplyReceived" {
-                    var result shared.ReplyReceived
-                    json.Unmarshal(event.Payload, &result)
+		for {
+			select {
+			case event := <-tester.Inbound:
+				if event.Type == "ReplyReceived" {
+					var result shared.ReplyReceived
+					json.Unmarshal(event.Payload, &result)
 
-                    if result.EchoID == "TEST_001" {
-                        log.Printf("✅ TEST PASSED: Received EchoResponse from %s\n", Peers[0])
-                        return
-                    }
-                }
-            case <-timeout:
-                t.Fatal("Timed out waiting for ReplyReceived")
-            }
-        }
+					if result.EchoID == "TEST_001" {
+						log.Printf("✅ TEST PASSED: Received EchoResponse from %s\n", Peers[0])
+						return
+					}
+				}
+			case <-timeout:
+				t.Fatal("Timed out waiting for ReplyReceived")
+			}
+		}
 	})
 }
 
 func TestMain(m *testing.M) {
-    Peers = strings.Split(os.Getenv("PEERS"), ",")
-    ID = os.Getenv("ID")
-    ctx = context.Background()
-    WM = wrapper.NewWrapperManager(8090, Peers...)
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	ID = os.Getenv("ID")
+	ctx = context.Background()
+	WM = wrapper.NewWrapperManager(8090, Peers...)
 
-    const attempts = 200
-    const sleepInterval = 50 * time.Millisecond
-    for i := 1; i <= attempts; i++ {
-        errors := WM.ReadyAll(ctx)
-        allReady := true
-        for peer, err := range errors {
-            if err != nil {
-                allReady = false
-                log.Printf("Peer %s not ready: %v\n", peer, err)
-            }
-        }
-        if allReady {
-            log.Println("All peers are ready")
-            break
-        }
-        time.Sleep(sleepInterval)
-    }
+	const attempts = 200
+	const sleepInterval = 50 * time.Millisecond
+	for i := 1; i <= attempts; i++ {
+		errors := WM.ReadyAll(ctx)
+		allReady := true
+		for peer, err := range errors {
+			if err != nil {
+				allReady = false
+				log.Printf("Peer %s not ready: %v\n", peer, err)
+			}
+		}
+		if allReady {
+			log.Println("All peers are ready")
+			break
+		}
+		time.Sleep(sleepInterval)
+	}
 
-    code := m.Run()
-    _ = disttest.Write("test_results.json")
-    WM.ShutdownAll(ctx)
-    os.Exit(code)
+	code := m.Run()
+	_ = disttest.Write("test_results.json")
+	WM.ShutdownAll(ctx)
+	os.Exit(code)
 }
