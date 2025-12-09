@@ -72,19 +72,6 @@ func TestPaxos(t *testing.T) {
 						}
 
 						if len(resultsReceived) == 1 {
-							for _, peerID := range Peers {
-								electionResult := shared.ElectionResult{
-									BaseMessage: dsnet.BaseMessage{
-										From: "TESTER",
-										To:   peerID,
-										Type: "ElectionResult",
-									},
-									ElectionID: electionID,
-									LeaderID:   result.LeaderID,
-									Success:    true,
-								}
-								tester.Send(ctx, peerID, electionResult)
-							}
 							log.Printf("✅ TEST PASSED: %s elected as leader after potential multiple election rounds", result.LeaderID)
 
 							time.Sleep(500 * time.Millisecond)
