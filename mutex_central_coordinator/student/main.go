@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	ex "runner/shared"
+	"runner/shared"
 
 	"github.com/distcodep7/dsnet/dsnet"
 )
@@ -82,7 +81,7 @@ func (en *MutexNode) Run(ctx context.Context) {
 func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Event) {
 	switch event.Type {
 	case "MutexTrigger":
-		var trig ex.MutexTrigger
+		var trig shared.MutexTrigger
 		if err := json.Unmarshal(event.Payload, &trig); err != nil {
 			return
 		}
@@ -101,13 +100,13 @@ func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Even
 				if id == en.Net.ID {
 					continue
 				}
-				t := ex.MutexTrigger{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: id, Type: "MutexTrigger"}, MutexID: st.mutexID, WorkMillis: st.workMillis}
+				t := shared.MutexTrigger{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: id, Type: "MutexTrigger"}, MutexID: st.mutexID, WorkMillis: st.workMillis}
 				en.Net.Send(ctx, id, t)
 			}
 			st.inCS = true
 			doCoordinatorCS(ctx, en, st)
 		} else {
-			req := ex.RequestCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "RequestCS"}, MutexID: st.mutexID}
+			req := shared.RequestCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "RequestCS"}, MutexID: st.mutexID}
 			en.Net.Send(ctx, st.coordinatorID, req)
 			st.waitingGrant = true
 		}
@@ -116,7 +115,7 @@ func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Even
 		if !st.isCoordinator {
 			return
 		}
-		var req ex.RequestCS
+		var req shared.RequestCS
 		if err := json.Unmarshal(event.Payload, &req); err != nil {
 			return
 		}
@@ -126,7 +125,7 @@ func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Even
 		if st.isCoordinator {
 			return
 		}
-		var rep ex.ReplyCS
+		var rep shared.ReplyCS
 		if err := json.Unmarshal(event.Payload, &rep); err != nil {
 			return
 		}
@@ -139,7 +138,7 @@ func handleEvent(ctx context.Context, en *MutexNode, st *state, event dsnet.Even
 		} else {
 			// Backoff and retry
 			time.Sleep(100 * time.Millisecond)
-			req := ex.RequestCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "RequestCS"}, MutexID: st.mutexID}
+			req := shared.RequestCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "RequestCS"}, MutexID: st.mutexID}
 			en.Net.Send(ctx, st.coordinatorID, req)
 		}
 
@@ -165,14 +164,14 @@ func handleCoordinatorRequest(ctx context.Context, en *MutexNode, st *state, fro
 	if !st.inCS && st.holder == "" {
 		st.inCS = true
 		st.holder = from
-		rep := ex.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: from, Type: "ReplyCS"}, MutexID: mutexID, Granted: true}
+		rep := shared.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: from, Type: "ReplyCS"}, MutexID: mutexID, Granted: true}
 		en.Net.Send(ctx, from, rep)
 		return
 	}
 
 	log.Printf("[Coordinator] Node %s requested CS but currently held by %s. Queuing request.\n", from, st.holder)
 	st.queue = append(st.queue, from)
-	rep := ex.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: from, Type: "ReplyCS"}, MutexID: mutexID, Granted: false}
+	rep := shared.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: from, Type: "ReplyCS"}, MutexID: mutexID, Granted: false}
 	en.Net.Send(ctx, from, rep)
 }
 
@@ -184,7 +183,7 @@ func grantNext(ctx context.Context, en *MutexNode, st *state) {
 	st.queue = st.queue[1:]
 	st.inCS = true
 	st.holder = next
-	rep := ex.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: next, Type: "ReplyCS"}, MutexID: st.mutexID, Granted: true}
+	rep := shared.ReplyCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: next, Type: "ReplyCS"}, MutexID: st.mutexID, Granted: true}
 	en.Net.Send(ctx, next, rep)
 }
 
@@ -193,10 +192,10 @@ func doClientCS(ctx context.Context, en *MutexNode, st *state) {
 	time.Sleep(time.Duration(st.workMillis) * time.Millisecond)
 	log.Printf("[%s] Exiting CS\n", en.Net.ID)
 
-	rel := ex.ReleaseCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "ReleaseCS"}, MutexID: st.mutexID}
+	rel := shared.ReleaseCS{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: st.coordinatorID, Type: "ReleaseCS"}, MutexID: st.mutexID}
 	en.Net.Send(ctx, st.coordinatorID, rel)
 
-	res := ex.MutexResult{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: "TESTER", Type: "MutexResult"}, MutexID: st.mutexID, NodeId: en.Net.ID, Success: true}
+	res := shared.MutexResult{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: "TESTER", Type: "MutexResult"}, MutexID: st.mutexID, NodeId: en.Net.ID, Success: true}
 	en.Net.Send(ctx, "TESTER", res)
 }
 
@@ -209,7 +208,7 @@ func doCoordinatorCS(ctx context.Context, en *MutexNode, st *state) {
 	st.completed[en.Net.ID] = true
 	log.Printf("[Coordinator] Exited CS. Completed: %d/%d\n", len(st.completed), len(st.allNodes))
 
-	res := ex.MutexResult{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: "TESTER", Type: "MutexResult"}, MutexID: st.mutexID, NodeId: en.Net.ID, Success: true}
+	res := shared.MutexResult{BaseMessage: dsnet.BaseMessage{From: en.Net.ID, To: "TESTER", Type: "MutexResult"}, MutexID: st.mutexID, NodeId: en.Net.ID, Success: true}
 	en.Net.Send(ctx, "TESTER", res)
 
 	if len(st.completed) >= len(st.allNodes) {
@@ -223,7 +222,7 @@ func doCoordinatorCS(ctx context.Context, en *MutexNode, st *state) {
 func main() {
 	id = os.Getenv("ID")
 	if id == "" {
-		fmt.Println("ID environment variable not set")
+		log.Fatal("ID environment variable not set")
 		return
 	}
 	Peers = strings.Split(os.Getenv("PEERS"), ",")

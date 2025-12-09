@@ -1,0 +1,51 @@
+{
+    "jobUid":"9ff7df3b-79c7-4451-ac7c-87b61e6ca844",
+    "nodes": {
+        "submission": {
+            "submissionCode": {
+                "student/main.go":"",
+                "shared/protocol.go":""
+            },
+            "buildCommand":"go build -o ./stud ./student/main.go",
+            "entryCommand":"./wrapper -cmd ./stud",
+            "globalEnvs": [],
+            "replicaConfigs": [
+                {
+                    "alias": "Node-A",
+                    "envs": []
+                },
+                {
+                    "alias": "Node-B",
+                    "envs": [],
+                    "id": 1
+                },
+                {
+                    "alias": "Node-C",
+                    "envs": [],
+                    "id": 2
+                },
+                {
+                    "alias": "Node-D",
+                    "envs":  [],
+                    "id": 3
+                },
+                {
+                    "alias": "Node-E",
+                    "envs": [],
+                    "id": 4
+                }
+            ]
+        },
+        "testContainer": {
+            "alias": "test-container",
+            "testFiles": {
+                "test/main_test.go": ""
+            },
+            "envs": [],
+            "buildCommand": "go test -c -o ./test_binary ./test/",
+            "entryCommand": "./test_binary"
+        }
+    },
+    "userId": "$2b$10$jXL2FpYcfSxB2FdnxnqxdO7O8MHwy8IyWxZMbD2uPkqdck0EqV6lW",
+    "timeout": 60
+}

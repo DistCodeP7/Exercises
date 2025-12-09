@@ -1,4 +1,4 @@
-package leader_election
+package shared
 
 import "github.com/distcodep7/dsnet/dsnet"
 

@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"runner/shared"
 	"strings"
 	"testing"
 	"time"
+
+	"runner/shared"
 
 	"github.com/distcodep7/dsnet/dsnet"
 	"github.com/distcodep7/dsnet/testing/controller"
@@ -21,7 +22,7 @@ var ID string
 var ctx context.Context
 var WM *wrapper.WrapperManager
 
-func TestMutexCentralCoord(t *testing.T) {
+func TestPaxos(t *testing.T) {
 	disttest.Wrap(t, func(t *testing.T) {
 		go controller.Serve(controller.TestConfig{})
 		time.Sleep(2 * time.Second)
@@ -35,45 +36,30 @@ func TestMutexCentralCoord(t *testing.T) {
 		}
 		defer tester.Close()
 
-		trigger := shared.MutexTrigger{
-			BaseMessage: dsnet.BaseMessage{From: "TESTER", To: Peers[0], Type: "MutexTrigger"},
-			MutexID:     "TEST_MUTEX_001",
-			WorkMillis:  300,
+		trigger := shared.ElectionTrigger{
+			BaseMessage: dsnet.BaseMessage{
+				From: "TESTER",
+				To:   Peers[0],
+				Type: "ElectionTrigger",
+			},
+			ElectionID: "TEST_001",
 		}
 		tester.Send(ctx, Peers[0], trigger)
-
-		received := map[string]bool{}
-		expected := map[string]bool{}
-		for _, peer := range Peers {
-			expected[peer] = true
-		}
 
 		timeout := time.After(30 * time.Second)
 		for {
 			select {
 			case event := <-tester.Inbound:
-				if event.Type == "MutexResult" {
-					var result shared.MutexResult
+				if event.Type == "ElectionResult" {
+					var result shared.ElectionResult
 					json.Unmarshal(event.Payload, &result)
-					if result.Success && expected[result.NodeId] && result.MutexID == "TEST_MUTEX_001" {
-						received[result.NodeId] = true
-						log.Printf("Node %s completed CS (%d/%d)", result.NodeId, len(received), len(expected))
-
-						if len(received) >= len(expected) {
-							log.Println("✅ TEST PASSED: All nodes completed critical section")
-							return
-						}
+					if result.Success {
+						log.Printf("✅ TEST PASSED: %s elected successfully", result.LeaderID)
+						return
 					}
 				}
 			case <-timeout:
-				// Identify missing nodes for better error output
-				missing := []string{}
-				for n := range expected {
-					if !received[n] {
-						missing = append(missing, n)
-					}
-				}
-				log.Fatalf("❌ TEST FAILED: Timed out waiting for MutexResult from: %v", missing)
+				log.Fatal("❌ TEST FAILED: Timed out waiting for ElectionResult")
 			}
 		}
 	})
