@@ -90,7 +90,6 @@ func (pn *PaxosNode) handleEvent(ctx context.Context, event dsnet.Event) {
 }
 
 func (pn *PaxosNode) handleElectionResult(ctx context.Context, result shared.ElectionResult) {
-	// TESTER notifies us that election is complete
 	if pn.electionActive {
 		log.Printf("Node %s: Election complete, %s is leader", pn.Net.ID, result.LeaderID)
 		pn.electionActive = false
@@ -165,6 +164,19 @@ func (pn *PaxosNode) becomeLeader(ctx context.Context, electionID string) {
 
 	log.Printf("%s elected as leader (term: %d)", pn.Net.ID, pn.Term)
 
+	for _, peerID := range pn.peers {
+		electionResult := shared.ElectionResult{
+			BaseMessage: dsnet.BaseMessage{
+				From: "TESTER",
+				To:   peerID,
+				Type: "ElectionResult",
+			},
+			ElectionID: electionID,
+			LeaderID:   pn.Net.ID,
+			Success:    true,
+		}
+		pn.Net.Send(ctx, peerID, electionResult)
+	}
 	result := shared.ElectionResult{
 		BaseMessage: dsnet.BaseMessage{From: pn.Net.ID, To: "TESTER", Type: "ElectionResult"},
 		Success:     true,
