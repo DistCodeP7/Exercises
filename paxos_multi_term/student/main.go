@@ -46,6 +46,24 @@ func NewPaxosNode(id string, peers []string) *PaxosNode {
 	}
 }
 
+func main() {
+	id := os.Getenv("ID")
+	if id == "" {
+		log.Fatal("ID environment variable not set")
+	}
+
+	peers := strings.Split(os.Getenv("PEERS"), ",")
+	if len(peers) == 0 {
+		log.Fatal("PEERS environment variable not set")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	node := NewPaxosNode(id, peers)
+	node.Run(ctx)
+}
+
 func (pn *PaxosNode) Run(ctx context.Context) {
 	for {
 		select {
@@ -89,24 +107,41 @@ func (pn *PaxosNode) handleEvent(ctx context.Context, event dsnet.Event) {
 	}
 }
 
-func (pn *PaxosNode) handleElectionResult(ctx context.Context, result shared.ElectionResult) {
-	if pn.electionActive {
-		log.Printf("Node %s: Election complete, %s is leader", pn.Net.ID, result.LeaderID)
-		pn.electionActive = false
-		if pn.electionTimer != nil {
-			pn.electionTimer.Stop()
+func (pn *PaxosNode) startElection(ctx context.Context, electionID string) {
+	// Become candidate
+	pn.Term++
+	pn.VotedFor = pn.Net.ID
+	pn.isLeader = false
+	pn.electionActive = true
+	pn.lastElectionID = electionID
+
+	// Initialize vote tracking with self-vote
+	if pn.votesReceived == nil {
+		pn.votesReceived = make(map[string]map[string]bool)
+	}
+	pn.votesReceived[electionID] = map[string]bool{pn.Net.ID: true}
+
+	log.Printf("Node %s starting election (term: %d)", pn.Net.ID, pn.Term)
+
+	for _, peerID := range pn.peers {
+		if peerID != pn.Net.ID {
+			req := shared.RequestVote{
+				BaseMessage: dsnet.BaseMessage{From: pn.Net.ID, To: peerID, Type: "RequestVote"},
+				Term:        pn.Term,
+			}
+			pn.Net.Send(ctx, peerID, req)
 		}
 	}
-}
 
-func (pn *PaxosNode) stepDown(newTerm int) {
-	pn.Term = newTerm
-	pn.VotedFor = ""
-	pn.isLeader = false
-	pn.electionActive = false
 	if pn.electionTimer != nil {
 		pn.electionTimer.Stop()
 	}
+	pn.electionTimer = time.AfterFunc(3*time.Second, func() {
+		if pn.electionActive && !pn.isLeader {
+			log.Printf("Node %s: Election timeout, retrying", pn.Net.ID)
+			pn.startElection(ctx, electionID)
+		}
+	})
 }
 
 func (pn *PaxosNode) handleRequestVote(ctx context.Context, req shared.RequestVote) {
@@ -132,6 +167,16 @@ func (pn *PaxosNode) handleRequestVote(ctx context.Context, req shared.RequestVo
 		Granted:     voteGranted,
 	}
 	pn.Net.Send(ctx, req.From, resp)
+}
+
+func (pn *PaxosNode) stepDown(newTerm int) {
+	pn.Term = newTerm
+	pn.VotedFor = ""
+	pn.isLeader = false
+	pn.electionActive = false
+	if pn.electionTimer != nil {
+		pn.electionTimer.Stop()
+	}
 }
 
 func (pn *PaxosNode) handleVoteResponse(ctx context.Context, resp shared.VoteResponse) {
@@ -186,57 +231,12 @@ func (pn *PaxosNode) becomeLeader(ctx context.Context, electionID string) {
 	pn.Net.Send(ctx, "TESTER", result)
 }
 
-func (pn *PaxosNode) startElection(ctx context.Context, electionID string) {
-	// Become candidate
-	pn.Term++
-	pn.VotedFor = pn.Net.ID
-	pn.isLeader = false
-	pn.electionActive = true
-	pn.lastElectionID = electionID
-
-	// Initialize vote tracking with self-vote
-	if pn.votesReceived == nil {
-		pn.votesReceived = make(map[string]map[string]bool)
-	}
-	pn.votesReceived[electionID] = map[string]bool{pn.Net.ID: true}
-
-	log.Printf("Node %s starting election (term: %d)", pn.Net.ID, pn.Term)
-
-	for _, peerID := range pn.peers {
-		if peerID != pn.Net.ID {
-			req := shared.RequestVote{
-				BaseMessage: dsnet.BaseMessage{From: pn.Net.ID, To: peerID, Type: "RequestVote"},
-				Term:        pn.Term,
-			}
-			pn.Net.Send(ctx, peerID, req)
+func (pn *PaxosNode) handleElectionResult(ctx context.Context, result shared.ElectionResult) {
+	if pn.electionActive {
+		log.Printf("Node %s: Election complete, %s is leader", pn.Net.ID, result.LeaderID)
+		pn.electionActive = false
+		if pn.electionTimer != nil {
+			pn.electionTimer.Stop()
 		}
 	}
-
-	if pn.electionTimer != nil {
-		pn.electionTimer.Stop()
-	}
-	pn.electionTimer = time.AfterFunc(3*time.Second, func() {
-		if pn.electionActive && !pn.isLeader {
-			log.Printf("Node %s: Election timeout, retrying", pn.Net.ID)
-			pn.startElection(ctx, electionID)
-		}
-	})
-}
-
-func main() {
-	id := os.Getenv("ID")
-	if id == "" {
-		log.Fatal("ID environment variable not set")
-	}
-
-	peers := strings.Split(os.Getenv("PEERS"), ",")
-	if len(peers) == 0 {
-		log.Fatal("PEERS environment variable not set")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	node := NewPaxosNode(id, peers)
-	node.Run(ctx)
 }

@@ -48,6 +48,32 @@ func NewMutexNode(id string, coordinatorID string) *MutexNode {
 	return &MutexNode{Net: n, CoordinatorID: coordinatorID}
 }
 
+func main() {
+	id = os.Getenv("ID")
+	if id == "" {
+		log.Fatal("ID environment variable not set")
+		return
+	}
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	if Peers == nil {
+		log.Fatal("PEERS environment variable not set")
+		return
+	}
+	totalNodes = len(Peers)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if id == Peers[0] {
+		log.Printf("%s starting as coordinator\n", id)
+		mutexNode := NewMutexNode(id, "")
+		mutexNode.Run(ctx)
+	} else {
+		mutexNode := NewMutexNode(id, Peers[0])
+		mutexNode.Run(ctx)
+	}
+}
+
 func (en *MutexNode) Run(ctx context.Context) {
 	defer en.Net.Close()
 	isCoordinator := en.CoordinatorID == ""
@@ -217,30 +243,4 @@ func doCoordinatorCS(ctx context.Context, en *MutexNode, st *state) {
 		os.Exit(0)
 	}
 	grantNext(ctx, en, st)
-}
-
-func main() {
-	id = os.Getenv("ID")
-	if id == "" {
-		log.Fatal("ID environment variable not set")
-		return
-	}
-	Peers = strings.Split(os.Getenv("PEERS"), ",")
-	if Peers == nil {
-		log.Fatal("PEERS environment variable not set")
-		return
-	}
-	totalNodes = len(Peers)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if id == Peers[0] {
-		log.Printf("%s starting as coordinator\n", id)
-		mutexNode := NewMutexNode(id, "")
-		mutexNode.Run(ctx)
-	} else {
-		mutexNode := NewMutexNode(id, Peers[0])
-		mutexNode.Run(ctx)
-	}
 }
