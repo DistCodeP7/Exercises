@@ -12,9 +12,9 @@ import (
 	"github.com/distcodep7/dsnet/dsnet"
 )
 
-var totalNodes 	int
-var Peers 		[]string
-var id          string
+var totalNodes int
+var Peers []string
+var id string
 
 type EchoNode struct {
 	Net            *dsnet.Node
@@ -24,8 +24,8 @@ type EchoNode struct {
 func NewEchoNode(id string) *EchoNode {
 	n, err := dsnet.NewNode(id, "test-container:50051")
 	if err != nil {
-		log.Fatalf("Failed to create node %s: %v\n", id, err)
-		os.Exit(1)
+		log.Fatalf("Failed to create node %s: %v", id, err)
+		os.Exit(0)
 	}
 	return &EchoNode{Net: n, pendingReplies: make(map[string]map[string]bool)}
 }
@@ -36,6 +36,25 @@ func newBaseMessage(from, to, msgType string) dsnet.BaseMessage {
 		To:   to,
 		Type: msgType,
 	}
+}
+
+func main() {
+	id := os.Getenv("ID")
+	if id == "" {
+		log.Fatal("ID environment variable not set")
+		return
+	}
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	if Peers == nil {
+		log.Fatal("PEERS environment variable not set")
+		return
+	}
+	totalNodes = len(Peers)
+
+	ctx := context.Background()
+	echoNode := NewEchoNode(id)
+	defer echoNode.Net.Close()
+	echoNode.Run(ctx)
 }
 
 func (en *EchoNode) Run(ctx context.Context) {
@@ -55,14 +74,16 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 	case "SendTrigger":
 		var msg shared.SendTrigger
 		json.Unmarshal(event.Payload, &msg)
+		log.Printf("Received trigger from %s", event.From)
 
 		if en.pendingReplies == nil {
 			en.pendingReplies = make(map[string]map[string]bool)
 		}
 		en.pendingReplies[msg.EchoID] = make(map[string]bool)
-        log.Printf("ASS2")
 		en.SendToAll(ctx, msg.EchoID, msg.Content)
+		log.Printf("Sending broadcast message: '%s'", msg.Content)
 	case "EchoMessage":
+		log.Printf("Received message from %s", event.From)
 		var msg shared.EchoMessage
 		json.Unmarshal(event.Payload, &msg)
 
@@ -71,6 +92,7 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 			EchoID:      msg.EchoID,
 			Content:     msg.Content,
 		})
+		log.Printf("Replying to %s for message: %s", msg.From, msg.Content)
 	case "EchoResponse":
 		// Handle EchoResponse
 		var resp shared.EchoResponse
@@ -94,8 +116,8 @@ func (en *EchoNode) handleEvent(ctx context.Context, event dsnet.Event) {
 		}
 
 		if len(en.pendingReplies[resp.EchoID]) == totalNodes-1 {
-			// All replies received
-			en.Net.Send(ctx, "TESTER", 	shared.ReplyReceived{
+			log.Printf("Received responses from everyone, sending result to tester.")
+			en.Net.Send(ctx, "TESTER", shared.ReplyReceived{
 				BaseMessage: newBaseMessage(en.Net.ID, "TESTER", "ReplyReceived"),
 				EchoID:      resp.EchoID,
 				Success:     true,
@@ -117,23 +139,4 @@ func (en *EchoNode) SendToAll(ctx context.Context, echoID string, content string
 			Content:     content,
 		})
 	}
-}
-
-func main() {
-	id := os.Getenv("ID")
-	if id == "" {
-		log.Fatal("ID environment variable not set")
-		return
-	}
-	Peers = strings.Split(os.Getenv("PEERS"), ",")
-	if Peers == nil {
-		log.Fatal("PEERS environment variable not set")
-		return
-	}
-	totalNodes = len(Peers)
-
-	ctx := context.Background()
-	echoNode := NewEchoNode(id)
-	defer echoNode.Net.Close()
-	echoNode.Run(ctx)
 }
