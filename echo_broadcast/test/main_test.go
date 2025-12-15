@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 		for peer, err := range errors {
 			if err != nil {
 				allReady = false
-				log.Printf("Peer %s not ready: %v\n", peer, err)
+				log.Printf("Peer %s not ready: %v", peer, err)
 			}
 		}
 		if allReady {
