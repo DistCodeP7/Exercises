@@ -21,6 +21,36 @@ var ID string
 var ctx context.Context
 var WM *wrapper.WrapperManager
 
+func TestMain(m *testing.M) {
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	ID = os.Getenv("ID")
+	ctx = context.Background()
+	WM = wrapper.NewWrapperManager(8090, Peers...)
+
+	const attempts = 200
+	const sleepInterval = 50 * time.Millisecond
+	for i := 1; i <= attempts; i++ {
+		errors := WM.ReadyAll(ctx)
+		allReady := true
+		for peer, err := range errors {
+			if err != nil {
+				allReady = false
+				log.Printf("Peer %s not ready: %v\n", peer, err)
+			}
+		}
+		if allReady {
+			log.Println("All peers are ready")
+			break
+		}
+		time.Sleep(sleepInterval)
+	}
+
+	code := m.Run()
+	_ = disttest.Write("test_results.json")
+	WM.ShutdownAll(ctx)
+	os.Exit(code)
+}
+
 func TestMutexCentralCoord(t *testing.T) {
 	disttest.Wrap(t, func(t *testing.T) {
 		go controller.Serve(controller.TestConfig{})
@@ -77,34 +107,4 @@ func TestMutexCentralCoord(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestMain(m *testing.M) {
-	Peers = strings.Split(os.Getenv("PEERS"), ",")
-	ID = os.Getenv("ID")
-	ctx = context.Background()
-	WM = wrapper.NewWrapperManager(8090, Peers...)
-
-	const attempts = 200
-	const sleepInterval = 50 * time.Millisecond
-	for i := 1; i <= attempts; i++ {
-		errors := WM.ReadyAll(ctx)
-		allReady := true
-		for peer, err := range errors {
-			if err != nil {
-				allReady = false
-				log.Printf("Peer %s not ready: %v\n", peer, err)
-			}
-		}
-		if allReady {
-			log.Println("All peers are ready")
-			break
-		}
-		time.Sleep(sleepInterval)
-	}
-
-	code := m.Run()
-	_ = disttest.Write("test_results.json")
-	WM.ShutdownAll(ctx)
-	os.Exit(code)
 }

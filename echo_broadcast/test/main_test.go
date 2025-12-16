@@ -24,6 +24,36 @@ var (
 	ctx   context.Context
 )
 
+func TestMain(m *testing.M) {
+	Peers = strings.Split(os.Getenv("PEERS"), ",")
+	ID = os.Getenv("ID")
+	ctx = context.Background()
+	WM = wrapper.NewWrapperManager(8090, Peers...)
+
+	const attempts = 200
+	const sleepInterval = 50 * time.Millisecond
+	for i := 1; i <= attempts; i++ {
+		errors := WM.ReadyAll(ctx)
+		allReady := true
+		for peer, err := range errors {
+			if err != nil {
+				allReady = false
+				log.Printf("Peer %s not ready: %v", peer, err)
+			}
+		}
+		if allReady {
+			log.Println("All peers are ready")
+			break
+		}
+		time.Sleep(sleepInterval)
+	}
+
+	code := m.Run()
+	_ = disttest.Write("test_results.json")
+	WM.ShutdownAll(ctx)
+	os.Exit(code)
+}
+
 func TestEchoTwoNodes(t *testing.T) {
 	disttest.Wrap(t, func(t *testing.T) {
 		go controller.Serve(controller.TestConfig{})
@@ -48,6 +78,7 @@ func TestEchoTwoNodes(t *testing.T) {
 			Content: "Hello, DSNet!",
 		}
 		tester.Send(ctx, Peers[0], trigger)
+		log.Printf("Sent SendTrigger %s to %s", trigger.Content, Peers[0])
 
 		timeout := time.After(30 * time.Second)
 		for {
@@ -58,7 +89,7 @@ func TestEchoTwoNodes(t *testing.T) {
 					json.Unmarshal(event.Payload, &result)
 
 					if result.EchoID == "TEST_001" {
-						log.Printf("✅ TEST PASSED: Received EchoResponse from %s\n", Peers[0])
+						log.Printf("✅ TEST PASSED: Received EchoResponse from %s", Peers[0])
 						return
 					}
 				}
@@ -67,34 +98,4 @@ func TestEchoTwoNodes(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestMain(m *testing.M) {
-	Peers = strings.Split(os.Getenv("PEERS"), ",")
-	ID = os.Getenv("ID")
-	ctx = context.Background()
-	WM = wrapper.NewWrapperManager(8090, Peers...)
-
-	const attempts = 200
-	const sleepInterval = 50 * time.Millisecond
-	for i := 1; i <= attempts; i++ {
-		errors := WM.ReadyAll(ctx)
-		allReady := true
-		for peer, err := range errors {
-			if err != nil {
-				allReady = false
-				log.Printf("Peer %s not ready: %v\n", peer, err)
-			}
-		}
-		if allReady {
-			log.Println("All peers are ready")
-			break
-		}
-		time.Sleep(sleepInterval)
-	}
-
-	code := m.Run()
-	_ = disttest.Write("test_results.json")
-	WM.ShutdownAll(ctx)
-	os.Exit(code)
 }

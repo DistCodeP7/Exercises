@@ -38,6 +38,24 @@ func NewPaxosNode(id string, peers []string) *PaxosNode {
 	}
 }
 
+func main() {
+	id := os.Getenv("ID")
+	if id == "" {
+		log.Fatal("ID environment variable not set")
+	}
+
+	peers := strings.Split(os.Getenv("PEERS"), ",")
+	if len(peers) == 0 {
+		log.Fatal("PEERS environment variable not set")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	node := NewPaxosNode(id, peers)
+	node.Run(ctx)
+}
+
 func (pn *PaxosNode) Run(ctx context.Context) {
 	for {
 		select {
@@ -154,22 +172,4 @@ func (pn *PaxosNode) sendToAll(ctx context.Context) {
 			pn.Net.Send(ctx, peerID, req)
 		}
 	}
-}
-
-func main() {
-	id := os.Getenv("ID")
-	if id == "" {
-		log.Fatal("ID environment variable not set")
-	}
-
-	peers := strings.Split(os.Getenv("PEERS"), ",")
-	if len(peers) == 0 {
-		log.Fatal("PEERS environment variable not set")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	node := NewPaxosNode(id, peers)
-	node.Run(ctx)
 }
